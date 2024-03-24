@@ -35,6 +35,7 @@ export class UserService {
           fullName: user.fullName,
           password: hashedPassword,
           verified: isDevelopment,
+          banned: user.banned,
           roles: [Role.USER],
         },
         select: {
@@ -81,7 +82,7 @@ export class UserService {
     return { users, count, page: dto.page, pageSize: dto.pageSize, pageCount };
   }
 
-  async findOne(idOrEmail: string, isReset: boolean = false) {
+  async findOne(idOrEmail: string) {
     // if (isReset) {
     //   await this.cacheManager.del(idOrEmail);
     // }

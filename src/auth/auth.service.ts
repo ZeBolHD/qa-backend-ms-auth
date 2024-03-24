@@ -95,7 +95,7 @@ export class AuthService {
     dto: LoginDto,
     agent: string,
   ): Promise<Tokens & { user: Partial<User>; expiresIn: number }> {
-    const user: User = await this.userService.findOne(dto.email, true).catch((err) => {
+    const user: User = await this.userService.findOne(dto.email).catch((err) => {
       this.logger.error(err);
       return null;
     });

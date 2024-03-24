@@ -1,13 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import {
-  IsArray,
-  IsBoolean,
-  IsEmail,
-  IsString,
-  Matches,
-  MaxLength,
-  MinLength,
-} from "class-validator";
+import { IsBoolean, IsEmail, IsString, Matches, MaxLength, MinLength } from "class-validator";
 
 export class CreateUserDto {
   @ApiProperty({
@@ -15,6 +7,7 @@ export class CreateUserDto {
     default: "ФИО пользователя",
   })
   @IsString({ message: "Поле fullName должно быть строкой" })
+  @MinLength(5, { message: "Минимальная длина fullName 5 символов" })
   readonly fullName: string;
 
   @ApiProperty({
@@ -35,12 +28,6 @@ export class CreateUserDto {
   @MaxLength(32, { message: "Максимальная длина пароля 32 символа" })
   readonly password: string;
 
-  // @IsArray()
-  // @IsString({ each: true })
-  // @Type(() => String)
-  // @Transform(({ value }) => (value ? value.split(",") : Object.values(Location)))
-  // readonly roles: Role[];
-
   @ApiProperty({
     type: Boolean,
     default: true,
@@ -52,6 +39,6 @@ export class CreateUserDto {
     type: Boolean,
     default: false,
   })
-  @IsBoolean({ message: "Поле blocked должно быть булевым значением" })
-  readonly blocked: boolean;
+  @IsBoolean({ message: "Поле banned должно быть булевым значением" })
+  readonly banned: boolean;
 }

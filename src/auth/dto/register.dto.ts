@@ -17,6 +17,8 @@ export class RegisterDto {
     example: "test@email.com",
   })
   @IsString({ message: "Поле email должно быть строкой" })
+  @MinLength(3, { message: "Минимальная длина email 3 символа" })
+  @MaxLength(50, { message: "Максимальная длина email 32 символа" })
   @IsEmail({}, { message: "Некорректный email" })
   email: string;
 
@@ -26,6 +28,7 @@ export class RegisterDto {
   })
   @IsNotEmpty({ message: "Поле ФИО не должно быть пустым" })
   @IsString({ message: "Поле ФИО должно быть строкой" })
+  @MinLength(5, { message: "Минимальная длина ФИО 5 символов" })
   fullName: string;
 
   @ApiProperty({
