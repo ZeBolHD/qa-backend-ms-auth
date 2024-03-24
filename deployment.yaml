@@ -14,7 +14,7 @@ spec:
     metadata:
       labels:
         app: backend-ms-auth
-        version: "1.00"
+        version: "1.01"
     spec:
       containers:
         - name: backend-ms-auth
