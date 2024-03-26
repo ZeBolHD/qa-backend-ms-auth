@@ -14,14 +14,16 @@ spec:
     metadata:
       labels:
         app: backend-ms-auth
-        version: "1.01"
+        version: "1.00"
     spec:
       containers:
         - name: backend-ms-auth
-          image: zebolhd/qa-backend-ms-auth:latest
+          image: zebolhd/qa-backend-ms-auth:1.00
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
+                name: qa-config
+            - secretRef:
                 name: qa-secret
           ports:
             - containerPort: 5500
