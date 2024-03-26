@@ -189,7 +189,7 @@ export class AuthService {
       },
     });
 
-    const confirmationUrl = `${this.FRONTEND_URL}/auth/confirm?token=${token}`;
+    const confirmationUrl = `${this.FRONTEND_URL}/confirm?token=${token}`;
 
     return await this.mailerService.sendMail({
       to: user.email,
