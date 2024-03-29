@@ -23,8 +23,9 @@ export class UserResponse implements User {
   fullName: string;
 
   @ApiProperty({
+    default: ["USER"],
+    isArray: true,
     enum: Role,
-    default: Role.USER,
   })
   roles: Role[];
 
