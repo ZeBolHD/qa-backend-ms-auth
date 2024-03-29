@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { hashSync, genSaltSync } from "bcrypt";
@@ -18,27 +19,30 @@ import { EditUserDto, FindAllQueryDto } from "./dto";
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     private readonly prismaService: PrismaService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly configService: ConfigService,
   ) {}
 
-  async create(user: Partial<User>) {
-    const hashedPassword = this.hashPassword(user.password);
+  async create(dto: Partial<User>) {
+    const hashedPassword = this.hashPassword(dto.password);
     const isDevelopment = this.configService.get("NODE_ENV") === "development";
 
-    return await this.prismaService.user
+    const user = await this.prismaService.user
       .create({
         data: {
-          email: user.email,
-          fullName: user.fullName,
+          email: dto.email,
+          fullName: dto.fullName,
           password: hashedPassword,
           verified: isDevelopment,
-          banned: user.banned,
+          banned: dto.banned,
           roles: [Role.USER],
         },
         select: {
+          id: true,
           email: true,
           fullName: true,
           verified: true,
@@ -47,11 +51,17 @@ export class UserService {
         },
       })
       .catch(() => {
+        this.logger.error(`Failed to create user. User already exists with email: ${user.email}`);
         throw new ConflictException("Пользователь с таким email уже зарегистрирован");
       });
+
+    this.logger.log(`Created user: ${user.id}`);
+
+    return user;
   }
 
   async findAll(dto: FindAllQueryDto) {
+    this.logger.log(`Finding users with query: ${JSON.stringify(dto)}`);
     const users = await this.prismaService.user.findMany({
       where: {
         roles: {
@@ -79,37 +89,25 @@ export class UserService {
 
     const pageCount = Math.ceil(count / dto.pageSize);
 
+    this.logger.log(`Found ${users.length} users with query: ${JSON.stringify(dto)}`);
+
     return { users, count, page: dto.page, pageSize: dto.pageSize, pageCount };
   }
 
   async findOne(idOrEmail: string) {
-    // if (isReset) {
-    //   await this.cacheManager.del(idOrEmail);
-    // }
-
-    // const user = await this.cacheManager.get<User>(idOrEmail);
-    // if (!user) {
     const user = await this.prismaService.user.findFirst({
       where: {
         OR: [{ id: idOrEmail }, { email: idOrEmail }],
       },
     });
 
-    //   if (!user) {
-    //     return null;
-    //   }
-
-    //   const sec: number = convertToSecondsUtil(this.configService.get("JWT_EXP"));
-
-    //   await this.cacheManager.set(idOrEmail, user, sec);
-    //   return user;
-    // }
-
     return user;
   }
 
   async delete(id: string, user: JwtPayload) {
+    this.logger.log(`Deleting user: ${id}`);
     if (user.id !== id && !user.roles.includes(Role.ADMIN)) {
+      this.logger.error(`User ${user.id} is not allowed to delete user: ${id}`);
       throw new ForbiddenException();
     }
 
@@ -122,10 +120,14 @@ export class UserService {
       this.cacheManager.del(user.email),
     ]);
 
+    this.logger.log(`Deleted user: ${id}`);
+
     return;
   }
 
   async edit(id: string, dto: EditUserDto) {
+    this.logger.log(`Editing user: ${id}`);
+
     const _user = this.prismaService.user.findUnique({
       where: {
         id,
@@ -133,6 +135,7 @@ export class UserService {
     });
 
     if (!_user) {
+      this.logger.error(`User not found. Failed to edit user: ${id}`);
       throw new NotFoundException("Пользователь не найден");
     }
 
@@ -154,13 +157,17 @@ export class UserService {
         },
       })
       .catch(() => {
+        this.logger.error(`Failed to edit user. Invalid data: ${id}`);
         throw new BadRequestException("Неверные данные");
       });
+
+    this.logger.debug(`Edited user: ${id}`);
 
     return user;
   }
 
   async getMe(id: string) {
+    this.logger.log(`Getting user by access token: ${id}`);
     return await this.prismaService.user.findFirst({
       where: { id },
       select: {

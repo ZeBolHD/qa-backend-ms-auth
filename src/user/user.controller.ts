@@ -160,7 +160,7 @@ export class UserController {
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({
     summary: "Изменение данных пользователя",
-    description: "Изменение данных пользователя" + "\n\n" + "**Roles: USER, ADMIN, SUPER_ADMIN**",
+    description: "Изменение данных пользователя" + "\n\n" + "**Roles: ADMIN, SUPER_ADMIN**",
   })
   @ApiParam({
     name: "id",

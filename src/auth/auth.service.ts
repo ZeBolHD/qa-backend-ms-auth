@@ -28,6 +28,12 @@ import { convertToSecondsUtil } from "@common/utils/";
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly isDevelopment = this.configService.get("NODE_ENV") === "development";
+
+  private readonly EMAIL_USER: string = this.configService.get("MAIL_TRANSPORT_USER");
+  private readonly FRONTEND_URL = this.configService.get("FRONTEND_URL");
+  private readonly EXPIRE_TIME = this.configService.get("JWT_EXP", "5m");
+
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
@@ -45,6 +51,7 @@ export class AuthService {
     });
 
     if (!token) {
+      this.logger.error(`Invalid refresh token: ${refreshToken}`);
       throw new UnauthorizedException();
     }
 
@@ -60,7 +67,10 @@ export class AuthService {
 
     const user = await this.userService.findOne(token.userId);
 
+    this.logger.log(`Refreshing tokens for user: ${user.id}`);
+
     if (user.banned || !user.verified) {
+      this.logger.error(`Refresh failed. User not verified: ${user.id}`);
       throw new ForbiddenException("Пользователь заблокирован");
     }
 
@@ -68,25 +78,34 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
+    this.logger.log(`Registering new user with email: ${dto.email}`);
+
     const _user: User = await this.userService.findOne(dto.email).catch((err) => {
       this.logger.error(err);
       return null;
     });
 
     if (_user) {
+      this.logger.error(`Registration failed. User already exists with email: ${dto.email}`);
       throw new ConflictException("Пользователь с таким email уже зарегистрирован");
     }
 
-    const user = await this.userService.create(dto).catch((err) => {
-      this.logger.error(err);
-      return null;
-    });
+    const user = await this.userService
+      .create({
+        ...dto,
+        verified: this.isDevelopment,
+      })
+      .catch((err) => {
+        this.logger.error(err);
+        return null;
+      });
 
-    const isDevelopment = this.configService.get("NODE_ENV") === "development";
-
-    if (!isDevelopment) {
+    if (!this.isDevelopment) {
       await this.sendConfirmMail(user);
+      this.logger.log(`Sent confirmation mail to: ${user.email}`);
     }
+
+    this.logger.log(`Registered new user with id: ${user.id}`);
 
     return user;
   }
@@ -95,25 +114,32 @@ export class AuthService {
     dto: LoginDto,
     agent: string,
   ): Promise<Tokens & { user: Partial<User>; expiresIn: number }> {
+    this.logger.log(`Login attempt for user: ${dto.email}`);
+
     const user: User = await this.userService.findOne(dto.email).catch((err) => {
       this.logger.error(err);
       return null;
     });
 
     if (!user || !compareSync(dto.password, user.password)) {
+      this.logger.error(`Login failed. Invalid credentials: ${user.id}`);
       throw new UnauthorizedException("Неверный логин или пароль");
     }
 
     if (!user.verified) {
+      this.logger.error(`Login failed. User not verified: ${user.id}`);
       throw new ForbiddenException("Пользователь не подтвержден");
     }
 
     if (user.banned) {
+      this.logger.error(`Login failed. User banned: ${user.id}`);
       throw new ForbiddenException("Пользователь заблокирован");
     }
 
     const tokens = await this.generateTokens(user, agent);
     const expiresIn = this.getExpireTime();
+
+    this.logger.log(`Logged in user: ${user.id}`);
 
     return {
       user: {
@@ -136,6 +162,8 @@ export class AuthService {
     });
 
     const refreshToken = await this.getRefreshToken(user.id, agent);
+
+    this.logger.log(`Generated tokens for user: ${user.id}`);
 
     return {
       accessToken,
@@ -176,11 +204,9 @@ export class AuthService {
     });
   }
 
-  EMAIL_USER: string = this.configService.get("MAIL_TRANSPORT_YANDEX_USER");
-  FRONTEND_URL = this.configService.get("FRONTEND_URL");
-  EXPIRE_TIME = this.configService.get("JWT_EXP", "5m");
-
   async sendConfirmMail(user: User) {
+    this.logger.log(`Sending confirmation mail to: ${user.email}...`);
+
     const token = v4();
     await this.prismaService.userMailConfirmation.create({
       data: {
@@ -205,7 +231,9 @@ export class AuthService {
   }
 
   async confirmEmail(token: string) {
+    this.logger.log(`Confirming email for token: ${token}`);
     if (!token) {
+      this.logger.error("No token provided or invalid token");
       throw new BadRequestException("Неверный токен");
     }
 
@@ -216,6 +244,7 @@ export class AuthService {
         },
       })
       .catch(() => {
+        this.logger.error("Invalid token");
         throw new BadRequestException("Неверный токен");
       });
 
@@ -227,6 +256,8 @@ export class AuthService {
         verified: true,
       },
     });
+
+    this.logger.log(`Confirmed email for token: ${token}`);
 
     return {
       message: "Пользователь подтвержден",
