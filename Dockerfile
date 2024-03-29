@@ -13,4 +13,4 @@ COPY . .
 
 RUN npm run build
 
-CMD npm run dist/main.js
+CMD node dist/main.js
