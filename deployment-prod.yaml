@@ -14,10 +14,17 @@ spec:
     metadata:
       labels:
         app: backend-ms-auth
-        version: "1.00"
+        version: "1.01"
     spec:
       containers:
         - name: backend-ms-auth
+          resources:
+            limits:
+              memory: "220Mi"
+              cpu: "300m"
+            requests:
+              memory: "140Mi"
+              cpu: "100m"
           image: zebolhd/qa-backend-ms-auth:latest
           imagePullPolicy: Always
           envFrom:
