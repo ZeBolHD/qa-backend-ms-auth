@@ -69,8 +69,13 @@ export class AuthService {
 
     this.logger.log(`Refreshing tokens for user: ${user.id}`);
 
-    if (user.banned || !user.verified) {
+    if (!user.verified) {
       this.logger.error(`Refresh failed. User not verified: ${user.id}`);
+      throw new ForbiddenException("Пользователь не подтвержден");
+    }
+
+    if (user.banned) {
+      this.logger.error(`Refresh failed. User banned: ${user.id}`);
       throw new ForbiddenException("Пользователь заблокирован");
     }
 
