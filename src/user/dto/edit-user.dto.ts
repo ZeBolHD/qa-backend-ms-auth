@@ -6,7 +6,9 @@ export class EditUserDto {
   @ApiProperty({
     description: "Роли пользователя",
     enum: Role,
-    default: Role.USER,
+    default: [Role.USER],
+    isArray: true,
+    type: [Role],
   })
   @IsOptional()
   @IsArray({ message: "Поле roles должно быть массивом" })
