@@ -3,7 +3,6 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  Logger,
   UnauthorizedException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
@@ -24,10 +23,10 @@ import { Token, User } from "@prisma/client";
 import { ApiBearerAuth } from "@nestjs/swagger";
 
 import { convertToSecondsUtil } from "@common/utils/";
+import { PinoLogger } from "nestjs-pino";
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
   private readonly isDevelopment = this.configService.get("NODE_ENV") === "development";
 
   private readonly EMAIL_USER: string = this.configService.get("MAIL_TRANSPORT_USER");
@@ -40,7 +39,10 @@ export class AuthService {
     private readonly prismaService: PrismaService,
     private readonly mailerService: MailerService,
     private readonly configService: ConfigService,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(AuthService.name);
+  }
 
   @ApiBearerAuth()
   async refreshTokens(refreshToken: string, agent: string): Promise<Tokens> {
@@ -51,7 +53,7 @@ export class AuthService {
     });
 
     if (!token) {
-      this.logger.error(`Invalid refresh token: ${refreshToken}`);
+      this.logger.error("Invalid refresh token");
       throw new UnauthorizedException();
     }
 
@@ -67,15 +69,48 @@ export class AuthService {
 
     const user = await this.userService.findOne(token.userId);
 
-    this.logger.log(`Refreshing tokens for user: ${user.id}`);
+    this.logger.info(
+      {
+        user: {
+          id: user.id,
+          email: user.email,
+          roles: user.roles,
+          verified: user.verified,
+          banned: user.banned,
+        },
+      },
+      "Refreshing tokens for user",
+    );
 
     if (!user.verified) {
-      this.logger.error(`Refresh failed. User not verified: ${user.id}`);
+      this.logger.error(
+        {
+          user: {
+            id: user.id,
+            email: user.email,
+            roles: user.roles,
+            verified: user.verified,
+            banned: user.banned,
+          },
+        },
+        "Refresh failed. User not verified",
+      );
       throw new ForbiddenException("Пользователь не подтвержден");
     }
 
     if (user.banned) {
-      this.logger.error(`Refresh failed. User banned: ${user.id}`);
+      this.logger.error(
+        {
+          user: {
+            id: user.id,
+            email: user.email,
+            roles: user.roles,
+            verified: user.verified,
+            banned: user.banned,
+          },
+        },
+        "Refresh failed. User banned",
+      );
       throw new ForbiddenException("Пользователь заблокирован");
     }
 
@@ -83,15 +118,15 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    this.logger.log(`Registering new user with email: ${dto.email}`);
+    this.logger.info({ user: { email: dto.email, fullName: dto.fullName } }, "Register user");
 
     const _user: User = await this.userService.findOne(dto.email).catch((err) => {
-      this.logger.error(err);
+      this.logger.debug(err, "Failed to find user");
       return null;
     });
 
     if (_user) {
-      this.logger.error(`Registration failed. User already exists with email: ${dto.email}`);
+      this.logger.error({ user: dto }, "Registration failed. User already exists with this email");
       throw new ConflictException("Пользователь с таким email уже зарегистрирован");
     }
 
@@ -100,17 +135,44 @@ export class AuthService {
         ...dto,
         verified: this.isDevelopment,
       })
-      .catch((err) => {
-        this.logger.error(err);
+      .catch((e) => {
+        this.logger.debug(e, "Failed to register user");
         return null;
       });
 
-    if (!this.isDevelopment) {
-      await this.sendConfirmMail(user);
-      this.logger.log(`Sent confirmation mail to: ${user.email}`);
+    if (!user) {
+      this.logger.error({ user: dto }, "Failed to register user");
+      throw new BadRequestException("Неверные данные");
     }
 
-    this.logger.log(`Registered new user with id: ${user.id}`);
+    if (!this.isDevelopment) {
+      await this.sendConfirmMail(user);
+      this.logger.info(
+        {
+          user: {
+            id: user.id,
+            email: user.email,
+            roles: user.roles,
+            verified: user.verified,
+            banned: user.banned,
+          },
+        },
+        "Sent confirmation mail",
+      );
+    }
+
+    this.logger.info(
+      {
+        user: {
+          id: user.id,
+          email: user.email,
+          roles: user.roles,
+          verified: user.verified,
+          banned: user.banned,
+        },
+      },
+      "Registered new user",
+    );
 
     return user;
   }
@@ -119,32 +181,65 @@ export class AuthService {
     dto: LoginDto,
     agent: string,
   ): Promise<Tokens & { user: Partial<User>; expiresIn: number }> {
-    this.logger.log(`Login attempt for user: ${dto.email}`);
+    this.logger.info({ user: { email: dto.email } }, "Login user");
 
-    const user: User = await this.userService.findOne(dto.email).catch((err) => {
-      this.logger.error(err);
+    const user: User = await this.userService.findOne(dto.email).catch((e) => {
+      this.logger.debug(e, "Login failed. User not found");
       return null;
     });
 
     if (!user || !compareSync(dto.password, user.password)) {
-      this.logger.error(`Login failed. Invalid credentials: ${user.id}`);
+      this.logger.error({ user: { email: dto.email } }, "Login failed. Invalid credentials");
       throw new UnauthorizedException("Неверный логин или пароль");
     }
 
     if (!user.verified) {
-      this.logger.error(`Login failed. User not verified: ${user.id}`);
+      this.logger.error(
+        {
+          user: {
+            id: user.id,
+            email: user.email,
+            roles: user.roles,
+            verified: user.verified,
+            banned: user.banned,
+          },
+        },
+        "Login failed. User not verified",
+      );
       throw new ForbiddenException("Пользователь не подтвержден");
     }
 
     if (user.banned) {
-      this.logger.error(`Login failed. User banned: ${user.id}`);
+      this.logger.error(
+        {
+          user: {
+            id: user.id,
+            email: user.email,
+            roles: user.roles,
+            verified: user.verified,
+            banned: user.banned,
+          },
+        },
+        "Login failed. User banned",
+      );
       throw new ForbiddenException("Пользователь заблокирован");
     }
 
     const tokens = await this.generateTokens(user, agent);
     const expiresIn = this.getExpireTime();
 
-    this.logger.log(`Logged in user: ${user.id}`);
+    this.logger.info(
+      {
+        user: {
+          id: user.id,
+          email: user.email,
+          roles: user.roles,
+          verified: user.verified,
+          banned: user.banned,
+        },
+      },
+      "Logged in user",
+    );
 
     return {
       user: {
@@ -168,7 +263,7 @@ export class AuthService {
 
     const refreshToken = await this.getRefreshToken(user.id, agent);
 
-    this.logger.log(`Generated tokens for user: ${user.id}`);
+    this.logger.info({ user: { id: user.id, email: user.email } }, "Generated tokens for user");
 
     return {
       accessToken,
@@ -210,7 +305,7 @@ export class AuthService {
   }
 
   async sendConfirmMail(user: User) {
-    this.logger.log(`Sending confirmation mail to: ${user.email}...`);
+    this.logger.info({ user: { id: user.id, email: user.email } }, "Sending confirmation mail");
 
     const token = v4();
     await this.prismaService.userMailConfirmation.create({
@@ -236,7 +331,7 @@ export class AuthService {
   }
 
   async confirmEmail(token: string) {
-    this.logger.log(`Confirming email for token: ${token}`);
+    this.logger.info({ confirmToken: token }, `Confirming email`);
     if (!token) {
       this.logger.error("No token provided or invalid token");
       throw new BadRequestException("Неверный токен");
@@ -249,11 +344,11 @@ export class AuthService {
         },
       })
       .catch(() => {
-        this.logger.error("Invalid token");
+        this.logger.error({ confirmToken: token }, "Invalid token");
         throw new BadRequestException("Неверный токен");
       });
 
-    await this.prismaService.user.update({
+    const user = await this.prismaService.user.update({
       where: {
         email: userMailConfirmation.email,
       },
@@ -262,7 +357,7 @@ export class AuthService {
       },
     });
 
-    this.logger.log(`Confirmed email for token: ${token}`);
+    this.logger.info({ user: { id: user.id, email: user.email } }, "Confirmed email");
 
     return {
       message: "Пользователь подтвержден",
