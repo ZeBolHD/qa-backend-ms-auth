@@ -126,7 +126,10 @@ export class AuthService {
     });
 
     if (_user) {
-      this.logger.error({ user: dto }, "Registration failed. User already exists with this email");
+      this.logger.error(
+        { user: { email: dto.email, fullName: dto.fullName } },
+        "Registration failed. User already exists with this email",
+      );
       throw new ConflictException("Пользователь с таким email уже зарегистрирован");
     }
 
@@ -141,7 +144,10 @@ export class AuthService {
       });
 
     if (!user) {
-      this.logger.error({ user: dto }, "Failed to register user");
+      this.logger.error(
+        { user: { email: dto.email, fullName: dto.fullName } },
+        "Failed to register user",
+      );
       throw new BadRequestException("Неверные данные");
     }
 
