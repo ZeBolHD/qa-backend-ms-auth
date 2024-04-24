@@ -28,8 +28,8 @@ async function bootstrap() {
     .setDescription("This API for auth")
     .setVersion("1.02.1")
     .addServer(HOST, "API server")
-    .setExternalDoc("Коллекция json", "/swagger-json")
     .addBearerAuth()
+    .setExternalDoc("Коллекция json", "/swagger-json")
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
