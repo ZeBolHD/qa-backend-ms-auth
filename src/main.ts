@@ -29,13 +29,11 @@ async function bootstrap() {
     .setVersion("1.02.1")
     .addServer(HOST, "API server")
     .addBearerAuth()
-    .setExternalDoc("Коллекция json", "/swagger-json")
+    .setExternalDoc("Коллекция json", HOST + "/swagger-json")
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup("swagger", app, document, {
-    jsonDocumentUrl: "/swagger-json",
-  });
+  SwaggerModule.setup("swagger", app, document);
 
   await app.listen(5500);
 }
