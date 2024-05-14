@@ -63,7 +63,7 @@ model Movie {
 
 model Genre {
   id     Int     @id @default(autoincrement())
-  name   String
+  name   String  @unique
   movies Movie[]
 
   @@map("genres")
@@ -86,7 +86,7 @@ model Review {
 
 model Payment {
   id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
   userId    String   @map("user_id")
   movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
   movieId   Int      @map("movie_id")
