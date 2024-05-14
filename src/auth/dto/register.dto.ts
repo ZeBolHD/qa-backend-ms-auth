@@ -10,6 +10,7 @@ import {
 
 import { IsPasswordsMatchingConstraint } from "@common/decorators";
 import { ApiProperty } from "@nestjs/swagger";
+import { Transform } from "class-transformer";
 
 export class RegisterDto {
   @ApiProperty({
@@ -19,9 +20,9 @@ export class RegisterDto {
   })
   @IsNotEmpty({ message: "Поле email не должно быть пустым" })
   @IsString({ message: "Поле email должно быть строкой" })
-  @MinLength(3, { message: "Минимальная длина поля email 3 символа" })
-  @MaxLength(50, { message: "Максимальная длина поля email 32 символа" })
+  @Transform(({ value }) => value.trim())
   @IsEmail({}, { message: "Некорректный email" })
+  @Matches(/^.{4,50}@/, { message: "Некорректный email" })
   email: string;
 
   @ApiProperty({
@@ -31,7 +32,11 @@ export class RegisterDto {
   })
   @IsNotEmpty({ message: "Поле ФИО не должно быть пустым" })
   @IsString({ message: "Поле ФИО должно быть строкой" })
+  @Transform(({ value }) => value.trim())
   @MinLength(5, { message: "Минимальная длина поля ФИО 5 символов" })
+  @Matches(/^[A-Za-zА-Яа-я\s]+$/, {
+    message: "Поле ФИО должно содержать только буквы и пробелы",
+  })
   fullName: string;
 
   @ApiProperty({
@@ -43,14 +48,24 @@ export class RegisterDto {
   @IsString({ message: "Пароль должен быть строкой" })
   @MinLength(8, { message: "Минимальная длина пароля 8 символов" })
   @MaxLength(32, { message: "Максимальная длина пароля 32 символа" })
-  @Matches(
-    //eslint-disable-next-line
-    /^(?=.*[A-ZА-Я])(?=.*[a-zа-я])(?=.*\d)[A-Za-zА-Яа-я0-9~!?@#$%^&*_\-\+\(\)\[\]\{\}><\/\\|"'.,:]+$/,
-    {
-      message:
-        "Пароль должен содержать хотя бы одну заглавную букву, одну строчную букву, одну цифру и может включать только разрешенные специальные символы.",
-    },
-  )
+  @Transform(({ value }) => value.trim())
+  @Matches(/[A-ZА-Я]/, {
+    message: "Пароль должен содержать хотя бы одну заглавную букву",
+  })
+  @Matches(/[a-zа-я]/, {
+    message: "Пароль должен содержать хотя бы одну строчную букву",
+  })
+  @Matches(/\d/, {
+    message: "Пароль должен содержать хотя бы одну цифру",
+  })
+  @Matches(/^[^ ]*$/, {
+    message: "Пароль не должен содержать пробелов",
+  })
+  //eslint-disable-next-line
+  @Matches(/^[A-Za-zА-Яа-я0-9~!?@#$%^&*_\-\+\(\)\[\]\{\}><\/\\|"'.,:]+$/, {
+    message:
+      "Пароль может содержать только буквы, цифры, спецсимволы и знаки: ~!?@#$%^&*_-+()[{}><>/\\|\"'.,:]",
+  })
   password: string;
 
   @ApiProperty({
@@ -60,8 +75,7 @@ export class RegisterDto {
   })
   @IsNotEmpty({ message: "Поле passwordRepeat не должно быть пустым" })
   @IsString({ message: "Поле passwordRepeat должно быть строкой" })
-  @MinLength(8, { message: "Минимальная длина поля passwordRepeat 8 символов" })
-  @MaxLength(32, { message: "Максимальная длина поля passwordRepeat 32 символа" })
+  @Transform(({ value }) => value.trim())
   @Validate(IsPasswordsMatchingConstraint, { message: "Пароли не совпадают" })
   passwordRepeat: string;
 }
