@@ -137,10 +137,11 @@ export class AuthService {
       .create({
         ...dto,
         verified: this.isDevelopment,
+        banned: false,
       })
       .catch((e) => {
         this.logger.debug(e, "Failed to register user");
-        return null;
+        throw new BadRequestException("Неверные данные");
       });
 
     if (!user) {
@@ -310,7 +311,7 @@ export class AuthService {
     });
   }
 
-  async sendConfirmMail(user: User) {
+  async sendConfirmMail(user: Pick<User, "id" | "email">) {
     this.logger.info({ user: { id: user.id, email: user.email } }, "Sending confirmation mail");
 
     const token = v4();

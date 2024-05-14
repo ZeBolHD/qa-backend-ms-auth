@@ -28,7 +28,7 @@ export class UserService {
     this.logger.setContext(UserService.name);
   }
 
-  async create(dto: Partial<User>) {
+  async create(dto: Partial<User>): Promise<Omit<User, "password" | "updatedAt">> {
     const hashedPassword = this.hashPassword(dto.password);
     const isDevelopment = this.configService.get("NODE_ENV") === "development";
 
@@ -59,6 +59,7 @@ export class UserService {
           email: true,
           fullName: true,
           verified: true,
+          banned: true,
           roles: true,
           createdAt: true,
         },

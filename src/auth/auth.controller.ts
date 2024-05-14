@@ -15,6 +15,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
+import { User } from "@prisma/client";
 
 import { Cookie, Public, UserAgent } from "@common/decorators";
 import { UserResponse } from "@user/responses";
@@ -62,7 +63,7 @@ export class AuthController {
       );
     }
 
-    return new UserResponse(user);
+    return new UserResponse(user as User);
   }
 
   @ApiOperation({
@@ -209,13 +210,13 @@ export class AuthController {
     });
 
     if (data) {
-      res.status(HttpStatus.CREATED).json({
+      res.status(HttpStatus.OK).json({
         ...data,
       });
       return;
     }
 
-    res.status(HttpStatus.CREATED).json({
+    res.status(HttpStatus.OK).json({
       accessToken: tokens.accessToken,
     });
   }
