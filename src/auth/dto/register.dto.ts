@@ -23,6 +23,9 @@ export class RegisterDto {
   @Transform(({ value }) => value.trim())
   @IsEmail({}, { message: "Некорректный email" })
   @Matches(/^.{4,50}@/, { message: "Некорректный email" })
+  @Matches(/^[^&=+<>,_'’"~`!#;:$%^&*()]+$/, {
+    message: "Некорректный email",
+  })
   email: string;
 
   @ApiProperty({
