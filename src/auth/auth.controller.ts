@@ -176,7 +176,11 @@ export class AuthController {
   @ApiOperation({
     summary: "Подтверждение email",
     description:
-      "Подтверждение email пользователя" + "\n\n" + "**Roles: USER, ADMIN, SUPER_ADMIN**",
+      "Подтверждение email пользователя" +
+      "\n\n" +
+      "**Roles: USER, ADMIN, SUPER_ADMIN**" +
+      "\n\n\n" +
+      "Получить токен можно только по **почте** на **prod** сервере",
   })
   @ApiParam({
     name: "token",
