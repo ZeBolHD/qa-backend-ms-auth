@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: backend-ms-auth
-          image: zebolhd/qa-backend-ms-auth:latest
+          image: registry.dev-cinescope.store/qa-backend-ms-auth:latest
           resources:
             limits:
               memory: "220Mi"
@@ -34,6 +34,8 @@ spec:
                 name: qa-secret
           ports:
             - containerPort: 5500
+      imagePullSecrets:
+        - name: regcred
 
 ---
 apiVersion: v1
