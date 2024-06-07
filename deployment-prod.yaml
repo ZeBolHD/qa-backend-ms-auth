@@ -34,8 +34,6 @@ spec:
                 name: qa-secret
           ports:
             - containerPort: 5500
-      imagePullSecrets:
-        - name: regcred
 
 ---
 apiVersion: v1
