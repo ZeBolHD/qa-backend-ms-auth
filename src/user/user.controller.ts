@@ -59,7 +59,7 @@ export class UserController {
   })
   @Get("me")
   async me(@CurrentUser() user: JwtPayload) {
-    return await this.userService.getMe(user.id);
+    return await this.userService.findOne(user.id);
   }
 
   @ApiBearerAuth()
