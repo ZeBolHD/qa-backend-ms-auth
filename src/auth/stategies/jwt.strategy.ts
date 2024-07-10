@@ -22,7 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
-    const user = await this.userService.findOne(payload.id).catch((err) => {
+    const user = await this.userService.findOne({ id: payload.id }).catch((err) => {
       this.logger.error(err);
       return null;
     });
