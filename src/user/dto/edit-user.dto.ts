@@ -1,6 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { Role } from "@prisma/client";
-import { IsArray, IsBoolean, IsEnum, IsOptional, IsString } from "class-validator";
+import { IsArray, IsBoolean, IsEnum, IsOptional } from "class-validator";
 
 export class EditUserDto {
   @ApiProperty({
@@ -12,7 +12,6 @@ export class EditUserDto {
   })
   @IsOptional()
   @IsArray({ message: "Поле roles должно быть массивом" })
-  @IsString({ each: true })
   @IsEnum(Role, {
     each: true,
     message:

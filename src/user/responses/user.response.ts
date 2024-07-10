@@ -1,8 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { Role, User } from "@prisma/client";
-import { Exclude } from "class-transformer";
 
-export class UserResponse implements User {
+export class UserResponse implements Omit<User, "password" | "updatedAt"> {
   @ApiProperty({
     example: "8cbabbe9-5fff-4dbe-a77e-104bf4e63dbe",
     description: "Идентификатор пользователя",
@@ -35,9 +34,6 @@ export class UserResponse implements User {
   })
   verified: boolean;
 
-  @Exclude()
-  password: string;
-
   @ApiProperty({
     type: Date,
     default: "2024-03-02T05:37:47.298Z",
@@ -50,10 +46,7 @@ export class UserResponse implements User {
   })
   banned: boolean;
 
-  @Exclude()
-  updatedAt: Date;
-
-  constructor(user: User) {
+  constructor(user: Omit<User, "password" | "updatedAt">) {
     Object.assign(this, user);
   }
 }

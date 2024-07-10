@@ -1,7 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { Role } from "@prisma/client";
-import { Transform, Type } from "class-transformer";
-import { IsArray, IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
+import { Transform } from "class-transformer";
+import { IsArray, IsEnum, IsNumber, IsOptional, Max, Min } from "class-validator";
 
 enum Sort {
   ASC = "asc",
@@ -40,10 +40,11 @@ export class FindAllQueryDto {
     required: false,
   })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  @Type(() => String)
-  @Transform(({ value }) => (typeof value === "string" ? value.split(",") : Object.values(Role)))
+  @IsArray({ message: "Поле roles должен быть массивом" })
+  @IsEnum(Role, {
+    each: true,
+    message: "Поле roles может принимать только USER, ADMIN, SUPER_ADMIN",
+  })
   readonly roles: Role[] = Object.values(Role);
 
   @ApiProperty({
@@ -54,9 +55,7 @@ export class FindAllQueryDto {
     enum: Sort,
   })
   @IsOptional()
-  @IsString({
-    message: "Поле createdAt должно быть строкой",
-  })
+  @IsEnum(Sort, { message: "Поле createdAt может принимать только asc или desc" })
   @Transform(({ value }) => (typeof value === "string" && value ? value : "asc"))
   readonly createdAt: "asc" | "desc" = "desc";
 }

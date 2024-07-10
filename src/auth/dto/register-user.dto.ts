@@ -12,7 +12,7 @@ import { IsPasswordsMatchingConstraint } from "@common/decorators";
 import { ApiProperty } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
 
-export class RegisterDto {
+export class RegisterUserDto {
   @ApiProperty({
     type: String,
     example: "test@email.com",
