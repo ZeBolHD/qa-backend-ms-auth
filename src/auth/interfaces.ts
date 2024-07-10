@@ -1,7 +1,12 @@
 import { Role, Token } from "@prisma/client";
 
+export type AccessToken = {
+  token: string;
+  expiresIn: number;
+};
+
 export interface Tokens {
-  accessToken: string;
+  accessToken: AccessToken;
   refreshToken: Token;
 }
 

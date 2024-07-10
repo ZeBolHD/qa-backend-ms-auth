@@ -17,9 +17,10 @@
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
+    "resolveJsonModule": true,
     "paths": {
-      "@prisma": ["./src/prisma"],
-      "@prisma/*": ["src/prisma/*"],
+      "@prismadb": ["./src/prisma"],
+      "@prismadb/*": ["src/prisma/*"],
       "@user": ["src/user"],
       "@user/*": ["src/user/*"],
       "@common/": ["libs/common/src"],

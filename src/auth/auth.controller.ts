@@ -4,26 +4,24 @@ import {
   ClassSerializerInterceptor,
   Controller,
   Get,
-  HttpStatus,
   Post,
   Query,
-  Req,
   Res,
-  UnauthorizedException,
   UseInterceptors,
   ValidationPipe,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { Request, Response } from "express";
+import type { Response } from "express";
 import { User } from "@prisma/client";
 
 import { Cookie, Public, UserAgent } from "@common/decorators";
 import { UserResponse } from "@user/responses";
 
-import { LoginDto, RegisterDto } from "./dto";
+import { LoginUserDto, RegisterUserDto } from "./dto";
 import { AuthService } from "./auth.service";
-import type { Tokens } from "./interfaces";
+
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { LoginResponse } from "./responses";
 
 const REFRESH_TOKEN = "refresh_token";
 
@@ -54,7 +52,7 @@ export class AuthController {
   })
   @UseInterceptors(ClassSerializerInterceptor)
   @Post("register")
-  async register(@Body(new ValidationPipe()) dto: RegisterDto) {
+  async register(@Body(new ValidationPipe()) dto: RegisterUserDto) {
     const user = await this.authService.register(dto);
 
     if (!user) {
@@ -72,6 +70,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: 200,
+    type: LoginResponse,
   })
   @ApiResponse({
     status: 400,
@@ -94,17 +93,12 @@ export class AuthController {
     description: "Пользователь не найден",
   })
   @Post("login")
-  async login(@Body() dto: LoginDto, @Res() res: Response, @UserAgent() agent: string) {
-    const userWithTokens = await this.authService.login(dto, agent);
-
-    if (!userWithTokens) {
-      throw new BadRequestException(
-        `Не получается авторизоваться с данными ${JSON.stringify(dto)}`,
-      );
-    }
-
-    const data = { ...userWithTokens, refreshToken: userWithTokens.refreshToken.token };
-    this.setRefreshTokenToCookies(userWithTokens, res, data);
+  async login(
+    @Body() dto: LoginUserDto,
+    @UserAgent() userAgent: string,
+    @Res() response: Response,
+  ) {
+    await this.authService.login(dto, userAgent, response);
   }
 
   @ApiOperation({
@@ -116,14 +110,8 @@ export class AuthController {
     description: "Сброс refresh_token пользователя",
   })
   @Get("logout")
-  async logout(@Cookie(REFRESH_TOKEN) refreshToken: string, @Res() res: Response) {
-    if (!refreshToken) {
-      res.sendStatus(HttpStatus.OK);
-      return;
-    }
-    await this.authService.deleteRefreshToken(refreshToken);
-    res.cookie(REFRESH_TOKEN, "", { httpOnly: true, secure: true, expires: new Date() });
-    res.sendStatus(HttpStatus.OK);
+  async logout(@Cookie(REFRESH_TOKEN) refreshToken: string, @Res() response: Response) {
+    await this.authService.logout(refreshToken, response);
   }
 
   @ApiBearerAuth()
@@ -145,32 +133,10 @@ export class AuthController {
   @Get("refresh-tokens")
   async refresh(
     @Cookie(REFRESH_TOKEN) refreshToken: string,
-    @Res() res: Response,
-    @Req() req: Request,
-    @UserAgent() agent: string,
+    @Res() response: Response,
+    @UserAgent() userAgent: string,
   ) {
-    const [type, token] = req.headers.authorization?.split(" ") ?? [];
-
-    if (type === "Refresh") {
-      refreshToken = token;
-    }
-
-    if (!refreshToken) {
-      throw new UnauthorizedException("Пользователь не авторизован");
-    }
-    const tokens = await this.authService.refreshTokens(refreshToken, agent);
-
-    if (!tokens) {
-      throw new UnauthorizedException();
-    }
-
-    const expiresIn = this.authService.getExpireTime();
-
-    this.setRefreshTokenToCookies(tokens, res, {
-      ...tokens,
-      expiresIn,
-      refreshToken: tokens.refreshToken.token,
-    });
+    await this.authService.refreshTokens(refreshToken, userAgent, response);
   }
 
   @ApiOperation({
@@ -195,33 +161,7 @@ export class AuthController {
     description: "Неверный токен",
   })
   @Get("confirm")
-  async confirmEmail(@Query("token") token: string, @Res() res: Response) {
+  async confirmEmail(@Query("token") token: string) {
     await this.authService.confirmEmail(token);
-    res.status(HttpStatus.OK).json({ message: "Пользователь подтвержден" });
-  }
-
-  private setRefreshTokenToCookies(tokens: Tokens, res: Response, data?: any) {
-    if (!tokens) {
-      throw new UnauthorizedException();
-    }
-
-    res.cookie(REFRESH_TOKEN, tokens.refreshToken.token, {
-      httpOnly: true,
-      sameSite: "lax",
-      expires: new Date(tokens.refreshToken.exp),
-      secure: this.configService.get("NODE_ENV", "development") === "production",
-      path: "/",
-    });
-
-    if (data) {
-      res.status(HttpStatus.OK).json({
-        ...data,
-      });
-      return;
-    }
-
-    res.status(HttpStatus.OK).json({
-      accessToken: tokens.accessToken,
-    });
   }
 }

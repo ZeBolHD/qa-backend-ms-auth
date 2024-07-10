@@ -2,46 +2,67 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
 import { hashSync, genSaltSync } from "bcrypt";
 
 import { Role, User } from "@prisma/client";
-import { PrismaService } from "@prisma/prisma.service";
+import { PrismaService } from "@prismadb/prisma.service";
 import { JwtPayload } from "@auth/interfaces";
-import { CACHE_MANAGER, Cache } from "@nestjs/cache-manager";
 import { ConfigService } from "@nestjs/config";
 
-import { EditUserDto, FindAllQueryDto } from "./dto";
+import { CreateUserDto, EditUserDto, FindAllQueryDto } from "./dto";
 import { PinoLogger } from "nestjs-pino";
+import { omit } from "@common/utils";
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly prismaService: PrismaService,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(UserService.name);
   }
 
-  async create(dto: Partial<User>): Promise<Omit<User, "password" | "updatedAt">> {
-    const hashedPassword = this.hashPassword(dto.password);
+  async create(dto: CreateUserDto): Promise<Omit<User, "password" | "updatedAt">> {
     const isDevelopment = this.configService.get("NODE_ENV") === "development";
+
+    const userLog = omit(dto, "password");
 
     this.logger.info(
       {
-        user: {
-          email: dto.email,
-          fullName: dto.fullName,
-          verified: isDevelopment,
-          banned: dto.banned,
-        },
+        user: userLog,
       },
       "Create user",
+    );
+
+    if (await this.checkIsUserExist({ email: dto.email })) {
+      this.logger.error(
+        {
+          user: userLog,
+        },
+        "Failed to create user. User already exists with the same email.",
+      );
+      throw new ConflictException("Пользователь с таким email уже зарегистрирован");
+    }
+
+    this.logger.debug(
+      {
+        user: userLog,
+      },
+      "Hashing password",
+    );
+
+    const hashedPassword = this.hashPassword(dto.password);
+
+    this.logger.debug(
+      {
+        user: userLog,
+      },
+      "Creating user",
     );
 
     const user = await this.prismaService.user
@@ -76,9 +97,9 @@ export class UserService {
               banned: dto.banned,
             },
           },
-          "Failed to create user. User already exists with the same email.",
+          "Failed to create user. Wrong data",
         );
-        throw new ConflictException("Пользователь с таким email уже зарегистрирован");
+        throw new InternalServerErrorException("Возникла ошибка при создании пользователя");
       });
 
     this.logger.info(
@@ -93,18 +114,30 @@ export class UserService {
 
   async findAll(dto: FindAllQueryDto) {
     this.logger.info({ query: dto }, "Find all users");
-    const users = await this.prismaService.user.findMany({
-      where: {
-        roles: {
-          hasSome: dto.roles,
+
+    this.logger.debug({ query: dto }, "Finding all users");
+
+    const users = await this.prismaService.user
+      .findMany({
+        where: {
+          roles: {
+            hasSome: dto.roles,
+          },
         },
-      },
-      orderBy: {
-        createdAt: dto.createdAt,
-      },
-      skip: dto.page * dto.pageSize - dto.pageSize,
-      take: dto.pageSize,
-    });
+        orderBy: {
+          createdAt: dto.createdAt,
+        },
+        skip: dto.page * dto.pageSize - dto.pageSize,
+        take: dto.pageSize,
+      })
+      .catch((e) => {
+        this.logger.error(e, "Failed to find all users");
+
+        this.logger.error({ query: dto }, "Failed to find all users. Wrong data");
+        throw new BadRequestException("Неверные данные запроса");
+      });
+
+    this.logger.debug({ users }, "Found all users");
 
     const count = await this.prismaService.user
       .aggregate({
@@ -125,19 +158,20 @@ export class UserService {
     return { users, count, page: dto.page, pageSize: dto.pageSize, pageCount };
   }
 
-  async findOne(idOrEmail: string) {
-    const user = await this.prismaService.user.findFirst({
+  async findOne({ id, email }: { id?: string; email?: string }) {
+    this.logger.debug({ user: { id, email } }, "Finding one user");
+
+    return await this.prismaService.user.findFirst({
       where: {
-        OR: [{ id: idOrEmail }, { email: idOrEmail }],
+        OR: [{ id: id }, { email: email }],
       },
     });
-
-    return user;
   }
 
-  async delete(id: string, user: JwtPayload) {
+  async delete(id: string, userPayload?: JwtPayload) {
     this.logger.info({ user: { id } }, "Delete user");
-    if (user.id !== id && !user.roles.includes(Role.ADMIN)) {
+
+    if (userPayload && userPayload.id !== id && !userPayload.roles.includes(Role.ADMIN)) {
       this.logger.error(
         { user: { id } },
         "Failed to delete user. User is not allowed to delete other users",
@@ -145,34 +179,46 @@ export class UserService {
       throw new ForbiddenException();
     }
 
-    await Promise.all([
-      this.prismaService.user.delete({ where: { id }, select: { id: true } }).catch(() => {
-        this.logger.error({ user: { id } }, "Failed to delete user. User not found");
-        throw new NotFoundException();
-      }),
+    if (!(await this.checkIsUserExist({ id }))) {
+      this.logger.error({ user: { id } }, "Failed to delete user. User not found");
+      throw new NotFoundException("Пользователь не найден");
+    }
 
-      this.cacheManager.del(id),
-      this.cacheManager.del(user.email),
-    ]);
+    this.logger.debug({ user: { id } }, "Deleting user");
+
+    const user = await this.prismaService.user
+      .delete({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          verified: true,
+          banned: true,
+          roles: true,
+          createdAt: true,
+        },
+      })
+      .catch(() => {
+        this.logger.debug({ user: { id } }, "Failed to delete user");
+        this.logger.error({ user: { id } }, "Failed to delete user. Wrong data");
+        throw new InternalServerErrorException("Возникла ошибка при удалении пользователя");
+      });
 
     this.logger.info({ user: { id } }, "Deleted user");
 
-    return;
+    return user;
   }
 
   async edit(id: string, dto: EditUserDto) {
     this.logger.info({ user: { id, ...dto } }, "Edit user");
 
-    const _user = this.prismaService.user.findUnique({
-      where: {
-        id,
-      },
-    });
-
-    if (!_user) {
-      this.logger.error({ user: { id } }, "Failed to edit user. User not found");
+    if (!(await this.checkIsUserExist({ id }))) {
+      this.logger.error({ user: { id, ...dto } }, "Failed to edit user. User not found");
       throw new NotFoundException("Пользователь не найден");
     }
+
+    this.logger.debug({ user: { id, ...dto } }, "Editing user");
 
     const user = this.prismaService.user
       .update({
@@ -204,6 +250,12 @@ export class UserService {
 
   async getMe(id: string) {
     this.logger.info({ user: { id } }, "Get user by access token");
+
+    if (!(await this.checkIsUserExist({ id }))) {
+      this.logger.error({ user: { id } }, "Failed to get user by access token. User not found");
+      throw new NotFoundException("Пользователь не найден");
+    }
+
     return await this.prismaService.user
       .findFirst({
         where: { id },
@@ -217,12 +269,31 @@ export class UserService {
       })
       .catch((e) => {
         this.logger.debug(e, "Failed to get user by access token");
-        this.logger.error({ user: { id } }, "Failed to get user by access token. User not found");
-        throw new NotFoundException();
+        this.logger.error({ user: { id } }, "Failed to get user by access token");
+        throw new InternalServerErrorException("Возникла ошибка при получении пользователя");
       });
   }
 
   private hashPassword(password: string) {
     return hashSync(password, genSaltSync(10));
+  }
+
+  async checkIsUserExist({ email, id }: { email?: string; id?: string }) {
+    this.logger.debug({ user: { email, id } }, "Check is user exist");
+
+    const user = await this.prismaService.user
+      .findUnique({
+        where: {
+          email,
+          id,
+        },
+      })
+      .catch((e) => {
+        this.logger.debug(e, "Failed to find user");
+        this.logger.error({ user: { email, id } }, "Failed to find user. User not found");
+        return null;
+      });
+
+    return user !== null;
   }
 }

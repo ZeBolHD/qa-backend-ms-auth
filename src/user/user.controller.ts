@@ -59,7 +59,7 @@ export class UserController {
   })
   @Get("me")
   async me(@CurrentUser() user: JwtPayload) {
-    return await this.userService.findOne(user.id);
+    return await this.userService.findOne({ id: user.id });
   }
 
   @ApiBearerAuth()
@@ -89,7 +89,7 @@ export class UserController {
   @UseInterceptors(ClassSerializerInterceptor)
   @Get(":idOrEmail")
   async findOneUser(@Param("idOrEmail") idOrEmail: string) {
-    const user = await this.userService.findOne(idOrEmail);
+    const user = await this.userService.findOne({ id: idOrEmail, email: idOrEmail });
     return new UserResponse(user);
   }
 
