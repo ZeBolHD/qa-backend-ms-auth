@@ -167,7 +167,7 @@ export class AuthService {
     });
 
     //Проверка жизни токена
-    if (!token || token.exp < new Date()) {
+    if (!token || token.expiresIn < new Date()) {
       this.logger.error("Invalid refresh token");
       throw new UnauthorizedException("Неверный токен");
     }
@@ -310,11 +310,11 @@ export class AuthService {
       where: { token },
       update: {
         token: v4(),
-        exp: add(new Date(), { months: 1 }),
+        expiresIn: add(new Date(), { months: 1 }),
       },
       create: {
         token: v4(),
-        exp: add(new Date(), { months: 1 }),
+        expiresIn: add(new Date(), { months: 1 }),
         userId,
         userAgent,
       },
@@ -378,7 +378,7 @@ export class AuthService {
     response.cookie(this.REFRESH_TOKEN, token.token, {
       httpOnly: true,
       sameSite: "lax",
-      expires: new Date(token.exp),
+      expires: new Date(token.expiresIn),
       secure: this.configService.get("NODE_ENV", "development") === "production",
       path: "/",
     });

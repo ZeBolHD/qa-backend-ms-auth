@@ -179,7 +179,7 @@ describe("AuthService", () => {
       const tokens: Tokens = {
         refreshToken: {
           token: "token",
-          exp: new Date(),
+          expiresIn: new Date(),
           userAgent: "Chrome",
           userId: user.id,
         },
@@ -241,6 +241,10 @@ describe("AuthService", () => {
   });
 
   describe("logout", () => {
+    it("should be defined", () => {
+      expect(authService.logout).toBeDefined();
+    });
+
     it("should logout user", async () => {
       prismaMock.token.delete.mockResolvedValue({
         userId: user.id,
@@ -273,10 +277,14 @@ describe("AuthService", () => {
   });
 
   describe("refreshTokens", () => {
+    it("should be defined", () => {
+      expect(authService.refreshTokens).toBeDefined();
+    });
+
     it("should refresh tokens", async () => {
       const refreshToken = {
         token: "token",
-        exp: new Date(),
+        expiresIn: new Date(),
         userAgent: "Chrome",
         userId: user.id,
       };
